@@ -20,47 +20,50 @@ if [[ $(uname -r | cut -d "." -f 1) -eq 2 ]]; then
 	exit
 fi
 
+os="debian"
+os_version="10"
+
 # Detect OS
 # $os_version variables aren't always in use, but are kept here for convenience
-if grep -qs "ubuntu" /etc/os-release; then
-	os="ubuntu"
-	os_version=$(grep 'VERSION_ID' /etc/os-release | cut -d '"' -f 2 | tr -d '.')
-	group_name="nogroup"
-elif [[ -e /etc/debian_version ]]; then
-	os="debian"
-	os_version=$(grep -oE '[0-9]+' /etc/debian_version | head -1)
-	group_name="nogroup"
-elif [[ -e /etc/almalinux-release || -e /etc/rocky-release || -e /etc/centos-release ]]; then
-	os="centos"
-	os_version=$(grep -shoE '[0-9]+' /etc/almalinux-release /etc/rocky-release /etc/centos-release | head -1)
-	group_name="nobody"
-elif [[ -e /etc/fedora-release ]]; then
-	os="fedora"
-	os_version=$(grep -oE '[0-9]+' /etc/fedora-release | head -1)
-	group_name="nobody"
-else
-	echo "This installer seems to be running on an unsupported distribution.
-Supported distros are Ubuntu, Debian, AlmaLinux, Rocky Linux, CentOS and Fedora."
-	exit
-fi
+#if grep -qs "ubuntu" /etc/os-release; then
+#	os="ubuntu"
+#	os_version=$(grep 'VERSION_ID' /etc/os-release | cut -d '"' -f 2 | tr -d '.')
+#	group_name="nogroup"
+#elif [[ -e /etc/debian_version ]]; then
+#	os="debian"
+#	os_version=$(grep -oE '[0-9]+' /etc/debian_version | head -1)
+#	group_name="nogroup"
+#elif [[ -e /etc/centos-release ]]; then
+#	os="centos"
+#	os_version=$(grep -oE '[0-9]+' /etc/centos-release | head -1)
+#	group_name="nobody"
+#elif [[ -e /etc/fedora-release ]]; then
+#	os="fedora"
+#	os_version=$(grep -oE '[0-9]+' /etc/fedora-release | head -1)
+#	group_name="nobody"
+#else
+#	echo "This installer seems to be running on an unsupported distribution.
+#Supported distributions are Ubuntu, Debian, CentOS, and Fedora."
+#	exit
+#fi
 
-if [[ "$os" == "ubuntu" && "$os_version" -lt 1804 ]]; then
-	echo "Ubuntu 18.04 or higher is required to use this installer.
-This version of Ubuntu is too old and unsupported."
-	exit
-fi
+#if [[ "$os" == "ubuntu" && "$os_version" -lt 1804 ]]; then
+#	echo "Ubuntu 18.04 or higher is required to use this installer.
+#This version of Ubuntu is too old and unsupported."
+#	exit
+#fi
+#
+#if [[ "$os" == "debian" && "$os_version" -lt 9 ]]; then
+#	echo "Debian 9 or higher is required to use this installer.
+#This version of Debian is too old and unsupported."
+#	exit
+#fi
 
-if [[ "$os" == "debian" && "$os_version" -lt 9 ]]; then
-	echo "Debian 9 or higher is required to use this installer.
-This version of Debian is too old and unsupported."
-	exit
-fi
-
-if [[ "$os" == "centos" && "$os_version" -lt 7 ]]; then
-	echo "CentOS 7 or higher is required to use this installer.
-This version of CentOS is too old and unsupported."
-	exit
-fi
+#if [[ "$os" == "centos" && "$os_version" -lt 7 ]]; then
+#	echo "CentOS 7 or higher is required to use this installer.
+#This version of CentOS is too old and unsupported."
+#	exit
+#fi
 
 # Detect environments where $PATH does not include the sbin directories
 if ! grep -q sbin <<< "$PATH"; then
@@ -99,13 +102,6 @@ new_client () {
 }
 
 if [[ ! -e /etc/openvpn/server/server.conf ]]; then
-	# Detect some Debian minimal setups where neither wget nor curl are installed
-	if ! hash wget 2>/dev/null && ! hash curl 2>/dev/null; then
-		echo "Wget is required to use this installer."
-		read -n1 -r -p "Press any key to install Wget and continue..."
-		apt-get update
-		apt-get install -y wget
-	fi
 	clear
 	echo 'Welcome to this OpenVPN road warrior installer!'
 	# If system has a single IPv4, it is selected automatically. Else, ask the user
@@ -202,7 +198,7 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	[[ -z "$client" ]] && client="client"
 	echo
 	echo "OpenVPN installation is ready to begin."
-	# Install a firewall if firewalld or iptables are not already available
+	# Install a firewall in the rare case where one is not already available
 	if ! systemctl is-active --quiet firewalld.service && ! hash iptables 2>/dev/null; then
 		if [[ "$os" == "centos" || "$os" == "fedora" ]]; then
 			firewall="firewalld"
@@ -317,8 +313,8 @@ server 10.8.0.0 255.255.255.0" > /etc/openvpn/server/server.conf
 			echo 'push "dhcp-option DNS 149.112.112.112"' >> /etc/openvpn/server/server.conf
 		;;
 		6)
-			echo 'push "dhcp-option DNS 94.140.14.14"' >> /etc/openvpn/server/server.conf
-			echo 'push "dhcp-option DNS 94.140.15.15"' >> /etc/openvpn/server/server.conf
+			echo 'push "dhcp-option DNS 176.103.130.130"' >> /etc/openvpn/server/server.conf
+			echo 'push "dhcp-option DNS 176.103.130.131"' >> /etc/openvpn/server/server.conf
 		;;
 	esac
 	echo "keepalive 10 120
@@ -327,18 +323,19 @@ user nobody
 group $group_name
 persist-key
 persist-tun
+status openvpn-status.log
 verb 3
 crl-verify crl.pem" >> /etc/openvpn/server/server.conf
 	if [[ "$protocol" = "udp" ]]; then
 		echo "explicit-exit-notify" >> /etc/openvpn/server/server.conf
 	fi
 	# Enable net.ipv4.ip_forward for the system
-	echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-openvpn-forward.conf
+	echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/30-openvpn-forward.conf
 	# Enable without waiting for a reboot or service restart
 	echo 1 > /proc/sys/net/ipv4/ip_forward
 	if [[ -n "$ip6" ]]; then
 		# Enable net.ipv6.conf.all.forwarding for the system
-		echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.d/99-openvpn-forward.conf
+		echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.d/30-openvpn-forward.conf
 		# Enable without waiting for a reboot or service restart
 		echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 	fi
@@ -542,15 +539,14 @@ else
 					semanage port -d -t openvpn_port_t -p "$protocol" "$port"
 				fi
 				systemctl disable --now openvpn-server@server.service
+				rm -rf /etc/openvpn/server
 				rm -f /etc/systemd/system/openvpn-server@server.service.d/disable-limitnproc.conf
-				rm -f /etc/sysctl.d/99-openvpn-forward.conf
+				rm -f /etc/sysctl.d/30-openvpn-forward.conf
 				if [[ "$os" = "debian" || "$os" = "ubuntu" ]]; then
-					rm -rf /etc/openvpn/server
 					apt-get remove --purge -y openvpn
 				else
 					# Else, OS must be CentOS or Fedora
 					yum remove -y openvpn
-					rm -rf /etc/openvpn/server
 				fi
 				echo
 				echo "OpenVPN removed!"
